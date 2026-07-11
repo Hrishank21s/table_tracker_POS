@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Weekend Rush POS</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Outfit', sans-serif;
+      margin: 0; padding: 20px;
+      background: linear-gradient(to right, #0f2027, #203a43, #2c5364);
+      color: #fff;
+    }
+    
+    .header { text-align: center; margin-bottom: 20px; }
+    h1 { margin: 0 0 10px 0; color: #f8f9fa; font-weight: 600; }
+    #live-clock { color: #00e676; font-size: 1.2rem; }
+
+    .tabs { display: flex; justify-content: center; gap: 10px; margin-bottom: 25px; }
+    .tab-btn {
+      background: #1b1b1b; color: #fff; border: 2px solid #4caf50; border-radius: 10px;
+      padding: 10px 20px; font-size: 1.1rem; cursor: pointer; transition: 0.3s;
+    }
+    .tab-btn.active { background: #4caf50; font-weight: bold; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    .tables-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 20px; }
+
+    .table-card {
+      background: #1b1b1b; border: 2px solid #4caf50; border-radius: 15px; padding: 20px;
+      box-shadow: 0 0 15px rgba(76, 175, 80, 0.2); display: flex; gap: 20px;
+    }
+    .card-left { flex: 1; border-right: 1px solid #333; padding-right: 20px; }
+    .card-right { flex: 1; display: flex; flex-direction: column; }
+
+    .table-title { margin: 0 0 10px 0; font-size: 1.5rem; color: #4caf50; display: flex; justify-content: space-between;}
+    .status-badge { font-size: 0.8rem; padding: 3px 8px; border-radius: 5px; background: #555; }
+    .active-badge { background: #4caf50; }
+    
+    .rate-selector { margin-bottom: 10px; font-size: 0.9rem; }
+    .rate-selector select { border-radius: 5px; padding: 3px; }
+    .time-display { font-size: 2.5rem; font-weight: bold; margin: 10px 0; color: #fff; }
+    
+    .controls button { padding: 8px 12px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; margin-right: 5px; }
+    .btn-start { background: #4caf50; color: white; }
+    .btn-pause { background: #ff9800; color: white; }
+    .btn-end { background: #f44336; color: white; }
+    .controls button:disabled { background: #555; cursor: not-allowed; opacity: 0.5; }
+
+    .split-section { margin-top: 15px; display: flex; gap: 5px; }
+    .split-section input { width: 60px; padding: 5px; border-radius: 5px; border: none; }
+    .btn-split { background: #ff9800; color: white; border: none; border-radius: 5px; padding: 5px 10px; cursor: pointer; }
+    .split-result { margin-top: 10px; font-size: 0.9rem; color: #00e5ff; white-space: pre-line; }
+
+    /* Breakdown & Checkout Panel */
+    .checkout-panel { display: none; background: #222; border: 1px solid #f44336; border-radius: 10px; padding: 15px; margin-top: 15px; }
+    .price-breakdown { font-size: 0.9rem; color: #ddd; margin-bottom: 10px; white-space: pre-line; line-height: 1.4; }
+    .checkout-btns { display: flex; gap: 10px; }
+    .checkout-btns button { flex: 1; padding: 8px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; color: white; }
+    .btn-paid { background: #4caf50; }
+    .btn-unpaid { background: #ff9800; }
+    .btn-close { background: #555; }
+
+    /* Card Right */
+    .items-title { margin: 0 0 10px 0; font-size: 1.1rem; color: #aaa; }
+    .menu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-bottom: 15px; }
+    .btn-item { background: #2c5364; color: white; border: 1px solid #4caf50; border-radius: 5px; padding: 8px; cursor: pointer; font-size: 0.85rem;}
+    .btn-item:hover { background: #4caf50; }
+    .item-log { flex-grow: 1; background: #222; border-radius: 5px; padding: 10px; font-size: 0.85rem; overflow-y: auto; max-height: 100px; color: #ccc;}
+    .item-total { margin-top: 10px; font-weight: bold; color: #00e676; text-align: right; }
+
+    /* Global History Section */
+    .history-container { margin-top: 40px; background: #1b1b1b; border: 2px solid #00e5ff; border-radius: 15px; padding: 20px; box-shadow: 0 0 15px rgba(0, 229, 255, 0.1); }
+    .history-title { color: #00e5ff; margin: 0 0 15px 0; display: flex; justify-content: space-between; align-items: center; }
+    .history-log { font-size: 0.95rem; color: #00e5ff; max-height: 200px; overflow-y: auto; }
+    .history-entry { border-bottom: 1px solid #333; padding: 8px 0; }
+    .btn-clear-history { background: #f44336; color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 0.8rem; }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h1>Weekend Rush Table Tracker</h1>
+    <div id="live-clock">Current Time: 00:00:00</div>
+  </div>
+
+  <div class="tabs" id="tabs-container"></div>
+  <div id="app-content"></div>
+
+  <div class="history-container">
+    <h2 class="history-title">
+      Today's Table History 
+      <button class="btn-clear-history" onclick="clearHistory()">Clear History</button>
+    </h2>
+    <div class="history-log" id="global-history-log">No completed sessions today.</div>
+  </div>
+
+  <script>
+    const API_URL = 'http://localhost:8000';
+    let globalMenu = [];
+    let activeSessions = {}; 
+
+    // --- Clock Logic ---
+    function updateClock() {
+      const now = new Date();
+      document.getElementById('live-clock').textContent = `Current Time: ${now.toLocaleTimeString('en-IN', { hour12: false })}`;
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    // --- Boot App ---
+    async function init() {
+      const menuRes = await fetch(`${API_URL}/menu`);
+      globalMenu = await menuRes.json();
+      const zonesRes = await fetch(`${API_URL}/zones`);
+      const zones = await zonesRes.json();
+      
+      renderApp(zones);
+      loadHistory();
+    }
+
+    // --- Render UI ---
+    function renderApp(zones) {
+      const tabsContainer = document.getElementById('tabs-container');
+      const appContent = document.getElementById('app-content');
+      tabsContainer.innerHTML = '';
+      appContent.innerHTML = '';
+
+      zones.forEach((zone, index) => {
+        const tabBtn = document.createElement('button');
+        tabBtn.className = `tab-btn ${index === 0 ? 'active' : ''}`;
+        tabBtn.textContent = zone.zone_name;
+        tabBtn.onclick = () => switchTab(index);
+        tabsContainer.appendChild(tabBtn);
+
+        const zoneDiv = document.createElement('div');
+        zoneDiv.className = `tab-content ${index === 0 ? 'active' : ''}`;
+        zoneDiv.id = `zone-${index}`;
+
+        const grid = document.createElement('div');
+        grid.className = 'tables-grid';
+
+        zone.tables.forEach(table => {
+          const tableId = table.id;
+          if (!activeSessions[tableId]) {
+            activeSessions[tableId] = { isRunning: false, elapsed: 0, itemsTotal: 0, sessionId: null, itemsList: [], tableName: table.table_name };
+          }
+
+          const menuHtml = globalMenu.map(item => 
+            `<button class="btn-item" onclick="addItem(${tableId}, ${item.id}, '${item.name} ${item.variant}', ${item.price})">+ ${item.name} (${item.variant})</button>`
+          ).join('');
+
+          grid.innerHTML += `
+            <div class="table-card" id="card-${tableId}">
+              <div class="card-left">
+                <h2 class="table-title">${table.table_name} <span class="status-badge" id="badge-${tableId}">⚪ AVAIL</span></h2>
+                
+                <div class="rate-selector">
+                  Rate/min: <select id="rate-${tableId}"><option value="3">3</option><option value="4">4</option><option value="4.5">4.5</option></select>
+                </div>
+                
+                <div class="time-display" id="time-${tableId}">00:00</div>
+                
+                <div class="controls">
+                  <button class="btn-start" id="start-${tableId}" onclick="startTimer(${tableId})">Start</button>
+                  <button class="btn-pause" id="pause-${tableId}" onclick="togglePause(${tableId})" disabled>Pause</button>
+                  <button class="btn-end" id="end-${tableId}" onclick="showCheckout(${tableId})" disabled>End</button>
+                </div>
+
+                <div class="split-section">
+                  <input type="number" id="split-input-${tableId}" min="1" placeholder="Players">
+                  <button class="btn-split" onclick="calculateSplit(${tableId})">Split</button>
+                </div>
+                <div class="split-result" id="split-result-${tableId}"></div>
+
+                <div class="checkout-panel" id="checkout-${tableId}">
+                  <div class="price-breakdown" id="breakdown-${tableId}"></div>
+                  <div class="checkout-btns">
+                    <button class="btn-paid" onclick="submitCheckout(${tableId}, 'PAID')">Paid</button>
+                    <button class="btn-unpaid" onclick="submitCheckout(${tableId}, 'UNPAID')">Unpaid</button>
+                    <button class="btn-close" onclick="submitCheckout(${tableId}, 'CLOSE')">Close</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="card-right">
+                <h3 class="items-title">Quick Add Items</h3>
+                <div class="menu-grid">${menuHtml}</div>
+                <div class="item-log" id="log-${tableId}">No items ordered yet.</div>
+                <div class="item-total" id="item-total-${tableId}">Items Total: ₹0.00</div>
+              </div>
+            </div>
+          `;
+        });
+        
+        zoneDiv.appendChild(grid);
+        appContent.appendChild(zoneDiv);
+      });
+    }
+
+    // --- UI Logic ---
+    function switchTab(activeIndex) {
+      document.querySelectorAll('.tab-btn').forEach((btn, i) => btn.classList.toggle('active', i === activeIndex));
+      document.querySelectorAll('.tab-content').forEach((content, i) => content.classList.toggle('active', i === activeIndex));
+    }
+
+    // --- Table Mechanics ---
+    async function startTimer(tableId) {
+      const res = await fetch(`${API_URL}/sessions/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ table_id: tableId, customer_id: null })
+      });
+      const data = await res.json();
+      
+      const session = activeSessions[tableId];
+      session.sessionId = data.session_id;
+      session.isRunning = true;
+      session.startTimeStr = new Date().toLocaleTimeString('en-IN', { hour12: false });
+      session.startTime = Date.now() - (session.elapsed * 1000);
+      
+      document.getElementById(`badge-${tableId}`).textContent = '🟢 ACTIVE';
+      document.getElementById(`badge-${tableId}`).className = 'status-badge active-badge';
+      document.getElementById(`start-${tableId}`).disabled = true;
+      document.getElementById(`pause-${tableId}`).disabled = false;
+      document.getElementById(`end-${tableId}`).disabled = false;
+
+      session.interval = setInterval(() => {
+        if (session.isRunning) {
+          session.elapsed = Math.floor((Date.now() - session.startTime) / 1000);
+          const min = String(Math.floor(session.elapsed / 60)).padStart(2, '0');
+          const sec = String(session.elapsed % 60).padStart(2, '0');
+          document.getElementById(`time-${tableId}`).textContent = `${min}:${sec}`;
+        }
+      }, 1000);
+    }
+
+    function togglePause(tableId) {
+      const session = activeSessions[tableId];
+      session.isRunning = !session.isRunning;
+      const pauseBtn = document.getElementById(`pause-${tableId}`);
+      if (session.isRunning) {
+        session.startTime = Date.now() - (session.elapsed * 1000);
+        pauseBtn.textContent = 'Pause';
+      } else {
+        pauseBtn.textContent = 'Resume';
+      }
+    }
+
+    async function addItem(tableId, itemId, itemName, price) {
+      const session = activeSessions[tableId];
+      if (!session.sessionId) return alert("Start the table first!");
+
+      await fetch(`${API_URL}/sessions/add_item`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: session.sessionId, item_id: itemId })
+      });
+
+      session.itemsTotal += price;
+      session.itemsList.push(itemName);
+      document.getElementById(`item-total-${tableId}`).textContent = `Items Total: ₹${session.itemsTotal.toFixed(2)}`;
+      
+      const logDiv = document.getElementById(`log-${tableId}`);
+      if (session.itemsList.length === 1) logDiv.innerHTML = ''; 
+      logDiv.innerHTML += `+ ${itemName} (₹${price})<br>`;
+      logDiv.scrollTop = logDiv.scrollHeight;
+    }
+
+    function calculateSplit(tableId) {
+      const session = activeSessions[tableId];
+      const rate = parseFloat(document.getElementById(`rate-${tableId}`).value);
+      const players = parseInt(document.getElementById(`split-input-${tableId}`).value);
+      if (!players || players < 1) return;
+
+      const totalMinutes = session.elapsed / 60;
+      const grandTotal = (totalMinutes * rate) + session.itemsTotal;
+      document.getElementById(`split-result-${tableId}`).textContent = `Total Bill: ₹${grandTotal.toFixed(2)}\nPer Player: ₹${(grandTotal / players).toFixed(2)}`;
+    }
+
+    function showCheckout(tableId) {
+      const session = activeSessions[tableId];
+      session.isRunning = false;
+      clearInterval(session.interval);
+      document.getElementById(`pause-${tableId}`).disabled = true;
+      document.getElementById(`end-${tableId}`).disabled = true;
+      
+      session.endTimeStr = new Date().toLocaleTimeString('en-IN', { hour12: false });
+      const rate = parseFloat(document.getElementById(`rate-${tableId}`).value);
+      const totalMinutes = session.elapsed / 60;
+      const timeCost = totalMinutes * rate;
+      const grandTotal = timeCost + session.itemsTotal;
+
+      // Populate Price Breakdown
+      document.getElementById(`breakdown-${tableId}`).innerHTML = `
+        <strong>Session:</strong> ${session.startTimeStr} > ${session.endTimeStr} (${totalMinutes} mins)
+        <strong>Time Cost:</strong> ₹${timeCost.toFixed(2)}
+        <strong>Items Cost:</strong> ₹${session.itemsTotal.toFixed(2)}
+        <span style="color:#4caf50; font-size:1.1rem; display:block; margin-top:5px;"><strong>Total: ₹${grandTotal.toFixed(2)}</strong></span>
+      `;
+      
+      document.getElementById(`checkout-${tableId}`).style.display = 'block';
+    }
+
+    async function submitCheckout(tableId, status) {
+      const session = activeSessions[tableId];
+      const totalMinutes = session.elapsed / 60;
+
+      // Backend Call
+      const res = await fetch(`${API_URL}/sessions/checkout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: session.sessionId, payment_status: status, total_minutes: totalMinutes })
+      });
+      const data = await res.json();
+      
+      // Save to History Log
+      const historyStr = `[${session.tableName}] ${session.startTimeStr} > ${session.endTimeStr} | Time: ${totalMinutes}m | Items: ${session.itemsList.length} | <strong>Total: ₹${data.final_bill.toFixed(2)}</strong> | (${status}) (Guest)`;
+      saveToHistory(historyStr);
+
+      // Reset Table UI smoothly without reloading the page
+      resetTableUI(tableId);
+    }
+
+    function resetTableUI(tableId) {
+      const session = activeSessions[tableId];
+      session.isRunning = false;
+      session.elapsed = 0;
+      session.itemsTotal = 0;
+      session.sessionId = null;
+      session.itemsList = [];
+
+      document.getElementById(`badge-${tableId}`).textContent = '⚪ AVAIL';
+      document.getElementById(`badge-${tableId}`).className = 'status-badge';
+      document.getElementById(`time-${tableId}`).textContent = '00:00';
+      document.getElementById(`start-${tableId}`).disabled = false;
+      document.getElementById(`pause-${tableId}`).disabled = true;
+      document.getElementById(`pause-${tableId}`).textContent = 'Pause';
+      document.getElementById(`end-${tableId}`).disabled = true;
+      
+      document.getElementById(`checkout-${tableId}`).style.display = 'none';
+      document.getElementById(`split-input-${tableId}`).value = '';
+      document.getElementById(`split-result-${tableId}`).textContent = '';
+      document.getElementById(`log-${tableId}`).innerHTML = 'No items ordered yet.';
+      document.getElementById(`item-total-${tableId}`).textContent = 'Items Total: ₹0.00';
+    }
+
+    // --- History Storage Logic ---
+    function saveToHistory(entry) {
+      let history = JSON.parse(localStorage.getItem('weekendRushHistory')) || [];
+      history.unshift(entry); // Add to top
+      localStorage.setItem('weekendRushHistory', JSON.stringify(history));
+      loadHistory();
+    }
+
+    function loadHistory() {
+      let history = JSON.parse(localStorage.getItem('weekendRushHistory')) || [];
+      const logDiv = document.getElementById('global-history-log');
+      if (history.length === 0) {
+        logDiv.innerHTML = 'No completed sessions today.';
+      } else {
+        logDiv.innerHTML = history.map(item => `<div class="history-entry">${item}</div>`).join('');
+      }
+    }
+
+    function clearHistory() {
+      if(confirm("Are you sure you want to clear today's history log?")) {
+        localStorage.removeItem('weekendRushHistory');
+        loadHistory();
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>
