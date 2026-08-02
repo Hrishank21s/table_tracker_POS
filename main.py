@@ -2,19 +2,29 @@ from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
+from contextlib import asynccontextmanager
 import logging
 import os
 import sqlite3
-from pathlib import Path
 from typing import Optional
+
+from init_db import setup_database
 
 logger = logging.getLogger(__name__)
 
-DB_PATH = os.environ.get("TRACKER_DB_PATH", str(Path(__file__).resolve().parent / "tracker.db"))
+DB_PATH = os.environ.get("TRACKER_DB", "tracker.db")
 
 VALID_PAYMENT_STATUSES = ("PAID", "UNPAID", "CLOSE")
 
-app = FastAPI(title="Weekend Rush Table Tracker API")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Creates and seeds the database on boot so the API works out of the box."""
+    setup_database(DB_PATH)
+    yield
+
+
+app = FastAPI(title="Weekend Rush Table Tracker API", lifespan=lifespan)
 
 # Allow your HTML frontend to talk to this server without security blocks
 app.add_middleware(
@@ -65,6 +75,7 @@ class ScanRequest(BaseModel):
 class StartSessionRequest(BaseModel):
     table_id: int
     customer_id: Optional[int] = None
+    rate_per_minute: Optional[float] = None
 
 class AddItemRequest(BaseModel):
     session_id: int
@@ -112,17 +123,22 @@ def rfid_scan(scan: ScanRequest, db: sqlite3.Connection = Depends(get_db)):
 def start_session(req: StartSessionRequest, db: sqlite3.Connection = Depends(get_db)):
     """Starts a new timer/session for a specific table."""
     cursor = db.cursor()
-
     table = cursor.execute("SELECT id, status FROM tables WHERE id = ?", (req.table_id,)).fetchone()
     if not table:
-        raise HTTPException(status_code=404, detail=f"Table {req.table_id} not found")
+        raise HTTPException(status_code=404, detail="Table not found")
     if table['status'] == 'ACTIVE':
-        raise HTTPException(status_code=409, detail=f"Table {req.table_id} already has an active session")
+        raise HTTPException(status_code=409, detail="Table already has an active session")
 
     if req.customer_id is not None:
         customer = cursor.execute("SELECT id FROM customers WHERE id = ?", (req.customer_id,)).fetchone()
         if not customer:
-            raise HTTPException(status_code=404, detail=f"Customer {req.customer_id} not found")
+            raise HTTPException(status_code=404, detail="Customer not found")
+
+    if req.rate_per_minute is not None:
+        cursor.execute(
+            "UPDATE tables SET rate_per_minute = ? WHERE id = ?",
+            (req.rate_per_minute, req.table_id),
+        )
 
     # Mark table as ACTIVE
     cursor.execute("UPDATE tables SET status = 'ACTIVE' WHERE id = ?", (req.table_id,))
@@ -148,9 +164,9 @@ def add_item(req: AddItemRequest, db: sqlite3.Connection = Depends(get_db)):
         "SELECT id, end_time FROM sessions WHERE id = ?", (req.session_id,)
     ).fetchone()
     if not session:
-        raise HTTPException(status_code=404, detail=f"Session {req.session_id} not found")
+        raise HTTPException(status_code=404, detail="Session not found")
     if session['end_time'] is not None:
-        raise HTTPException(status_code=409, detail=f"Session {req.session_id} is already closed")
+        raise HTTPException(status_code=409, detail="Session is already closed")
 
     # Log the item to the session
     cursor.execute('''
@@ -186,9 +202,9 @@ def checkout_session(req: CheckoutRequest, db: sqlite3.Connection = Depends(get_
     ''', (req.session_id,)).fetchone()
 
     if not session:
-        raise HTTPException(status_code=404, detail=f"Session {req.session_id} not found")
+        raise HTTPException(status_code=404, detail="Session not found")
     if session['end_time'] is not None:
-        raise HTTPException(status_code=409, detail=f"Session {req.session_id} is already closed")
+        raise HTTPException(status_code=409, detail="Session is already closed")
 
     time_cost = req.total_minutes * session['rate_per_minute']
     total_bill = time_cost + session['items_cost']

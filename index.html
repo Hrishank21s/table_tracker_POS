@@ -150,7 +150,7 @@
         renderApp(zones);
       } catch (err) {
         document.getElementById('app-content').innerHTML =
-          `<div style="color:#f44336; text-align:center;">Failed to load tables: ${err.message}</div>`;
+          `<p style="color:#f44336; text-align:center">Failed to load the POS data: ${err.message}<br>Start the API with <code>uvicorn main:app --reload</code>.</p>`;
         showError(`Failed to load the POS data. ${err.message}`);
       }
       loadHistory();
@@ -193,7 +193,7 @@
                 <h2 class="table-title">${table.table_name} <span class="status-badge" id="badge-${tableId}">⚪ AVAIL</span></h2>
                 
                 <div class="rate-selector">
-                  Rate/min: <select id="rate-${tableId}"><option value="3">3</option><option value="4">4</option><option value="4.5">4.5</option></select>
+                  Rate/min: <select id="rate-${tableId}" onchange="onRateChange(${tableId})"><option value="3">3</option><option value="4">4</option><option value="4.5">4.5</option></select>
                 </div>
                 
                 <div class="time-display" id="time-${tableId}">00:00</div>
@@ -236,6 +236,11 @@
     }
 
     // --- UI Logic ---
+    function onRateChange(tableId) {
+      if (!activeSessions[tableId].sessionId) return;
+      alert('This table is already running; the new rate applies to the next session.');
+    }
+
     function switchTab(activeIndex) {
       document.querySelectorAll('.tab-btn').forEach((btn, i) => btn.classList.toggle('active', i === activeIndex));
       document.querySelectorAll('.tab-content').forEach((content, i) => content.classList.toggle('active', i === activeIndex));
@@ -243,12 +248,13 @@
 
     // --- Table Mechanics ---
     async function startTimer(tableId) {
+      const rate = parseFloat(document.getElementById(`rate-${tableId}`).value);
       let data;
       try {
         data = await apiFetch('/sessions/start', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ table_id: tableId, customer_id: null })
+          body: JSON.stringify({ table_id: tableId, customer_id: null, rate_per_minute: rate })
         });
       } catch (err) {
         showError(`Could not start the table. ${err.message}`);
