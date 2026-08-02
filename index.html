@@ -103,6 +103,35 @@
     let globalMenu = [];
     let activeSessions = {}; 
 
+    // --- API access ---
+    function getApiKey() {
+      let key = localStorage.getItem('weekendRushApiKey');
+      if (!key) {
+        key = prompt('Enter the POS API key (TRACKER_API_KEY on the server):') || '';
+        if (key) localStorage.setItem('weekendRushApiKey', key);
+      }
+      return key;
+    }
+
+    async function apiFetch(path, options = {}) {
+      const headers = Object.assign({ 'X-API-Key': getApiKey() }, options.headers || {});
+      const res = await fetch(`${API_URL}${path}`, Object.assign({}, options, { headers }));
+      if (res.status === 401) {
+        localStorage.removeItem('weekendRushApiKey');
+        throw new Error('Unauthorized: the API key was rejected. Reload and enter it again.');
+      }
+      if (!res.ok) {
+        throw new Error(`Request to ${path} failed (${res.status})`);
+      }
+      return res;
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>"']/g, ch => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      })[ch]);
+    }
+
     // --- Clock Logic ---
     function updateClock() {
       const now = new Date();
@@ -113,12 +142,15 @@
 
     // --- Boot App ---
     async function init() {
-      const menuRes = await fetch(`${API_URL}/menu`);
-      globalMenu = await menuRes.json();
-      const zonesRes = await fetch(`${API_URL}/zones`);
-      const zones = await zonesRes.json();
-      
-      renderApp(zones);
+      try {
+        const menuRes = await apiFetch('/menu');
+        globalMenu = await menuRes.json();
+        const zonesRes = await apiFetch('/zones');
+        const zones = await zonesRes.json();
+        renderApp(zones);
+      } catch (err) {
+        alert(err.message);
+      }
       loadHistory();
     }
 
@@ -149,14 +181,15 @@
             activeSessions[tableId] = { isRunning: false, elapsed: 0, itemsTotal: 0, sessionId: null, itemsList: [], tableName: table.table_name };
           }
 
-          const menuHtml = globalMenu.map(item => 
-            `<button class="btn-item" onclick="addItem(${tableId}, ${item.id}, '${item.name} ${item.variant}', ${item.price})">+ ${item.name} (${item.variant})</button>`
-          ).join('');
+          const menuHtml = globalMenu.map(item => {
+            const label = escapeHtml(`${item.name} ${item.variant}`);
+            return `<button class="btn-item" onclick="addItem(${tableId}, ${Number(item.id)}, this.dataset.label, ${Number(item.price)})" data-label="${label}">+ ${escapeHtml(item.name)} (${escapeHtml(item.variant)})</button>`;
+          }).join('');
 
           grid.innerHTML += `
             <div class="table-card" id="card-${tableId}">
               <div class="card-left">
-                <h2 class="table-title">${table.table_name} <span class="status-badge" id="badge-${tableId}">⚪ AVAIL</span></h2>
+                <h2 class="table-title">${escapeHtml(table.table_name)} <span class="status-badge" id="badge-${tableId}">⚪ AVAIL</span></h2>
                 
                 <div class="rate-selector">
                   Rate/min: <select id="rate-${tableId}"><option value="3">3</option><option value="4">4</option><option value="4.5">4.5</option></select>
@@ -209,12 +242,17 @@
 
     // --- Table Mechanics ---
     async function startTimer(tableId) {
-      const res = await fetch(`${API_URL}/sessions/start`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ table_id: tableId, customer_id: null })
-      });
-      const data = await res.json();
+      let data;
+      try {
+        const res = await apiFetch('/sessions/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ table_id: tableId, customer_id: null })
+        });
+        data = await res.json();
+      } catch (err) {
+        return alert(err.message);
+      }
       
       const session = activeSessions[tableId];
       session.sessionId = data.session_id;
@@ -254,11 +292,15 @@
       const session = activeSessions[tableId];
       if (!session.sessionId) return alert("Start the table first!");
 
-      await fetch(`${API_URL}/sessions/add_item`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: session.sessionId, item_id: itemId })
-      });
+      try {
+        await apiFetch('/sessions/add_item', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: session.sessionId, item_id: itemId })
+        });
+      } catch (err) {
+        return alert(err.message);
+      }
 
       session.itemsTotal += price;
       session.itemsList.push(itemName);
@@ -266,7 +308,7 @@
       
       const logDiv = document.getElementById(`log-${tableId}`);
       if (session.itemsList.length === 1) logDiv.innerHTML = ''; 
-      logDiv.innerHTML += `+ ${itemName} (₹${price})<br>`;
+      logDiv.innerHTML += `+ ${escapeHtml(itemName)} (₹${price})<br>`;
       logDiv.scrollTop = logDiv.scrollHeight;
     }
 
@@ -310,15 +352,20 @@
       const totalMinutes = session.elapsed / 60;
 
       // Backend Call
-      const res = await fetch(`${API_URL}/sessions/checkout`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: session.sessionId, payment_status: status, total_minutes: totalMinutes })
-      });
-      const data = await res.json();
+      let data;
+      try {
+        const res = await apiFetch('/sessions/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: session.sessionId, payment_status: status, total_minutes: totalMinutes })
+        });
+        data = await res.json();
+      } catch (err) {
+        return alert(err.message);
+      }
       
       // Save to History Log
-      const historyStr = `[${session.tableName}] ${session.startTimeStr} > ${session.endTimeStr} | Time: ${totalMinutes}m | Items: ${session.itemsList.length} | <strong>Total: ₹${data.final_bill.toFixed(2)}</strong> | (${status}) (Guest)`;
+      const historyStr = `[${escapeHtml(session.tableName)}] ${session.startTimeStr} > ${session.endTimeStr} | Time: ${totalMinutes}m | Items: ${session.itemsList.length} | <strong>Total: ₹${data.final_bill.toFixed(2)}</strong> | (${status}) (Guest)`;
       saveToHistory(historyStr);
 
       // Reset Table UI smoothly without reloading the page
