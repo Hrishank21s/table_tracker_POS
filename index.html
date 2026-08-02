@@ -113,12 +113,16 @@
 
     // --- Boot App ---
     async function init() {
-      const menuRes = await fetch(`${API_URL}/menu`);
-      globalMenu = await menuRes.json();
-      const zonesRes = await fetch(`${API_URL}/zones`);
-      const zones = await zonesRes.json();
-      
-      renderApp(zones);
+      try {
+        const menuRes = await fetch(`${API_URL}/menu`);
+        globalMenu = await menuRes.json();
+        const zonesRes = await fetch(`${API_URL}/zones`);
+        const zones = await zonesRes.json();
+        renderApp(zones);
+      } catch (err) {
+        document.getElementById('app-content').innerHTML =
+          `<p style="text-align:center">Cannot reach the API at ${API_URL}. Start it with <code>uvicorn main:app --reload</code>.</p>`;
+      }
       loadHistory();
     }
 
@@ -159,7 +163,7 @@
                 <h2 class="table-title">${table.table_name} <span class="status-badge" id="badge-${tableId}">⚪ AVAIL</span></h2>
                 
                 <div class="rate-selector">
-                  Rate/min: <select id="rate-${tableId}"><option value="3">3</option><option value="4">4</option><option value="4.5">4.5</option></select>
+                  Rate/min: <select id="rate-${tableId}" onchange="onRateChange(${tableId})"><option value="3">3</option><option value="4">4</option><option value="4.5">4.5</option></select>
                 </div>
                 
                 <div class="time-display" id="time-${tableId}">00:00</div>
@@ -202,6 +206,11 @@
     }
 
     // --- UI Logic ---
+    function onRateChange(tableId) {
+      if (!activeSessions[tableId].sessionId) return;
+      alert('This table is already running; the new rate applies to the next session.');
+    }
+
     function switchTab(activeIndex) {
       document.querySelectorAll('.tab-btn').forEach((btn, i) => btn.classList.toggle('active', i === activeIndex));
       document.querySelectorAll('.tab-content').forEach((content, i) => content.classList.toggle('active', i === activeIndex));
@@ -209,11 +218,13 @@
 
     // --- Table Mechanics ---
     async function startTimer(tableId) {
+      const rate = parseFloat(document.getElementById(`rate-${tableId}`).value);
       const res = await fetch(`${API_URL}/sessions/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ table_id: tableId, customer_id: null })
+        body: JSON.stringify({ table_id: tableId, customer_id: null, rate_per_minute: rate })
       });
+      if (!res.ok) return alert('Could not start the table. Is the server running?');
       const data = await res.json();
       
       const session = activeSessions[tableId];
@@ -315,6 +326,7 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ session_id: session.sessionId, payment_status: status, total_minutes: totalMinutes })
       });
+      if (!res.ok) return alert('Checkout failed. Please retry.');
       const data = await res.json();
       
       // Save to History Log
