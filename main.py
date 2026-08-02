@@ -1,11 +1,24 @@
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from contextlib import asynccontextmanager
+import os
 import sqlite3
-from datetime import datetime
 from typing import Optional
 
-app = FastAPI(title="Weekend Rush Table Tracker API")
+from init_db import setup_database
+
+DB_PATH = os.environ.get("TRACKER_DB", "tracker.db")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Creates and seeds the database on boot so the API works out of the box."""
+    setup_database(DB_PATH)
+    yield
+
+
+app = FastAPI(title="Weekend Rush Table Tracker API", lifespan=lifespan)
 
 # Allow your HTML frontend to talk to this server without security blocks
 app.add_middleware(
@@ -18,7 +31,7 @@ app.add_middleware(
 
 # Helper function to get database connection
 def get_db():
-    conn = sqlite3.connect('tracker.db')
+    conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row  # Returns rows as dictionaries
     try:
         yield conn
@@ -32,6 +45,7 @@ class ScanRequest(BaseModel):
 class StartSessionRequest(BaseModel):
     table_id: int
     customer_id: Optional[int] = None
+    rate_per_minute: Optional[float] = None
 
 class AddItemRequest(BaseModel):
     session_id: int
@@ -79,6 +93,16 @@ def rfid_scan(scan: ScanRequest, db: sqlite3.Connection = Depends(get_db)):
 def start_session(req: StartSessionRequest, db: sqlite3.Connection = Depends(get_db)):
     """Starts a new timer/session for a specific table."""
     cursor = db.cursor()
+    table = cursor.execute("SELECT id FROM tables WHERE id = ?", (req.table_id,)).fetchone()
+    if not table:
+        raise HTTPException(status_code=404, detail="Table not found")
+
+    if req.rate_per_minute is not None:
+        cursor.execute(
+            "UPDATE tables SET rate_per_minute = ? WHERE id = ?",
+            (req.rate_per_minute, req.table_id),
+        )
+
     # Mark table as ACTIVE
     cursor.execute("UPDATE tables SET status = 'ACTIVE' WHERE id = ?", (req.table_id,))
     # Create the session
@@ -98,6 +122,10 @@ def add_item(req: AddItemRequest, db: sqlite3.Connection = Depends(get_db)):
     
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
+
+    session = cursor.execute("SELECT id FROM sessions WHERE id = ?", (req.session_id,)).fetchone()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
 
     # Log the item to the session
     cursor.execute('''
@@ -125,6 +153,9 @@ def checkout_session(req: CheckoutRequest, db: sqlite3.Connection = Depends(get_
         JOIN tables t ON s.table_id = t.id 
         WHERE s.id = ?
     ''', (req.session_id,)).fetchone()
+
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
 
     time_cost = req.total_minutes * session['rate_per_minute']
     total_bill = time_cost + session['items_cost']
