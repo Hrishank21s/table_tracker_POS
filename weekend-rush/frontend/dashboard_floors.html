@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="css/public-theme.css" />
+  <link rel="stylesheet" href="css/styles.css" />
+  <title>Weekend Rush &middot; Floor Dashboard</title>
+</head>
+<body>
+  <header class="nav">
+    <span class="brand">WEEKEND <i>RUSH</i></span>
+    <nav>
+      <a href="dashboard_floors.html" class="lime">Dashboard</a>
+      <a href="customers.html">Customers</a>
+      <a href="settings.html">Settings</a>
+      <a href="public.html">Public board</a>
+      <span class="clock" id="wall-clock">--:--:--</span>
+      <span class="who" id="current-user">-</span>
+    </nav>
+    <button class="btn ghost" id="logout-btn" type="button">Logout</button>
+  </header>
+
+  <main class="page">
+    <p class="eyebrow">FLOOR CONSOLE</p>
+    <h1>Club control, in real time.</h1>
+    <p class="muted">Live clocks, play / pause / stop and instant split billing.</p>
+
+    <div class="metrics" style="margin-top:26px">
+      <div class="metric"><b id="metric-live">-</b><span>Active sessions</span></div>
+      <div class="metric"><b id="metric-booked">-</b><span>Tables booked</span></div>
+      <div class="metric"><b id="metric-clock">00:00:00</b><span>Total time on the clock</span></div>
+    </div>
+
+    <div class="tabs">
+      <button type="button" data-floor="1">Floor 1</button>
+      <button type="button" data-floor="2">Floor 2</button>
+      <button type="button" data-floor="3">Floor 3</button>
+    </div>
+
+    <p class="formmsg" id="global-msg"></p>
+    <div class="grid" id="tables-grid"></div>
+  </main>
+
+  <script src="js/api.js"></script>
+  <script src="js/shell.js"></script>
+  <script src="js/dashboard.js"></script>
+</body>
+</html>

@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="css/public-theme.css" />
+  <link rel="stylesheet" href="css/styles.css" />
+  <title>Weekend Rush &middot; Customers</title>
+</head>
+<body>
+  <header class="nav">
+    <span class="brand">WEEKEND <i>RUSH</i></span>
+    <nav>
+      <a href="dashboard_floors.html">Dashboard</a>
+      <a href="customers.html" class="lime">Customers</a>
+      <a href="settings.html">Settings</a>
+      <a href="public.html">Public board</a>
+      <span class="clock" id="wall-clock">--:--:--</span>
+      <span class="who" id="current-user">-</span>
+    </nav>
+    <button class="btn ghost" id="logout-btn" type="button">Logout</button>
+  </header>
+
+  <main class="page">
+    <p class="eyebrow">MEMBERS &amp; REGULARS</p>
+    <h1>Know every player.</h1>
+    <p class="muted">Membership status and NFC tags for quick check-in.</p>
+
+    <div class="grid two" style="margin-top:28px">
+      <section class="panel">
+        <h2>Customer list</h2>
+        <p class="formmsg" id="list-msg"></p>
+        <div style="overflow-x:auto">
+          <table class="datatable">
+            <thead>
+              <tr><th>Name</th><th>Phone</th><th>Member</th><th>NFC UID</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="customers-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="form" style="height:fit-content">
+        <h3 style="margin-top:0">Add a customer</h3>
+        <form id="customer-form" novalidate>
+          <label for="cust-name">Name</label>
+          <input id="cust-name" type="text" placeholder="Full name" />
+          <label for="cust-phone">Phone</label>
+          <input id="cust-phone" type="text" placeholder="10 digit number" />
+          <label for="cust-nfc">NFC UID (optional)</label>
+          <input id="cust-nfc" type="text" placeholder="04A1B2C3D4" />
+          <label class="checkline"><input id="cust-member" type="checkbox" /> Club member</label>
+          <button class="btn" style="width:100%" type="submit">Add customer</button>
+        </form>
+        <p class="formmsg" id="customer-msg"></p>
+      </section>
+    </div>
+  </main>
+
+  <script src="js/api.js"></script>
+  <script src="js/shell.js"></script>
+  <script src="js/customers.js"></script>
+</body>
+</html>

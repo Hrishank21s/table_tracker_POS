@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="css/public-theme.css" />
+  <link rel="stylesheet" href="css/styles.css" />
+  <title>Weekend Rush &middot; Settings</title>
+</head>
+<body>
+  <header class="nav">
+    <span class="brand">WEEKEND <i>RUSH</i></span>
+    <nav>
+      <a href="dashboard_floors.html">Dashboard</a>
+      <a href="customers.html">Customers</a>
+      <a href="settings.html" class="lime">Settings</a>
+      <a href="public.html">Public board</a>
+      <span class="clock" id="wall-clock">--:--:--</span>
+      <span class="who" id="current-user">-</span>
+    </nav>
+    <button class="btn ghost" id="logout-btn" type="button">Logout</button>
+  </header>
+
+  <main class="page">
+    <p class="eyebrow">CLUB SETUP</p>
+    <h1>Tables, rates &amp; people.</h1>
+    <p class="formmsg" id="role-msg"></p>
+
+    <section class="panel" style="margin-top:26px">
+      <h2>Tables &middot; floors &amp; hourly rates</h2>
+      <p class="formmsg" id="tables-msg"></p>
+      <div style="overflow-x:auto">
+        <table class="datatable">
+          <thead>
+            <tr><th>Table no</th><th>Floor</th><th>Rate (INR/hr)</th><th>Status</th><th>Actions</th></tr>
+          </thead>
+          <tbody id="tables-body"></tbody>
+        </table>
+      </div>
+
+      <form class="inline-form" id="table-form" novalidate>
+        <div>
+          <label for="new-table-no">Table no</label>
+          <input id="new-table-no" class="admin-only" type="number" min="1" placeholder="10" />
+        </div>
+        <div>
+          <label for="new-table-floor">Floor</label>
+          <select id="new-table-floor" class="admin-only">
+            <option value="1">1</option><option value="2">2</option><option value="3">3</option>
+          </select>
+        </div>
+        <div>
+          <label for="new-table-rate">Rate</label>
+          <input id="new-table-rate" class="admin-only" type="number" min="0.5" step="0.5" value="3" />
+        </div>
+        <button class="btn admin-only" type="submit">Add table</button>
+      </form>
+    </section>
+
+    <section class="panel" id="users-section">
+      <h2>Users</h2>
+      <p class="formmsg" id="users-msg"></p>
+      <div style="overflow-x:auto">
+        <table class="datatable">
+          <thead><tr><th>Username</th><th>Role</th><th>Actions</th></tr></thead>
+          <tbody id="users-body"></tbody>
+        </table>
+      </div>
+
+      <form class="inline-form" id="user-form" novalidate>
+        <div>
+          <label for="new-username">Username</label>
+          <input id="new-username" class="admin-only" type="text" placeholder="floor.staff" />
+        </div>
+        <div>
+          <label for="new-password">Password</label>
+          <input id="new-password" class="admin-only" type="password" placeholder="Password" />
+        </div>
+        <div>
+          <label for="new-role">Role</label>
+          <select id="new-role" class="admin-only">
+            <option value="staff">staff</option><option value="admin">admin</option>
+          </select>
+        </div>
+        <button class="btn admin-only" type="submit">Add user</button>
+      </form>
+    </section>
+  </main>
+
+  <script src="js/api.js"></script>
+  <script src="js/shell.js"></script>
+  <script src="js/settings.js"></script>
+</body>
+</html>

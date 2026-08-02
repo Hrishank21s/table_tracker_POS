@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="css/public-theme.css" />
+  <link rel="stylesheet" href="css/styles.css" />
+  <title>Weekend Rush &middot; Staff Login</title>
+</head>
+<body>
+  <header class="nav">
+    <span class="brand">WEEKEND <i>RUSH</i></span>
+    <nav>
+      <a href="public.html">Public board</a>
+      <span class="clock" id="wall-clock">--:--:--</span>
+    </nav>
+    <a class="btn" href="public.html">Back to the club</a>
+  </header>
+
+  <main class="login-wrap">
+    <div class="form login-card">
+      <p class="eyebrow">STAFF ACCESS</p>
+      <h3 style="margin:8px 0 4px;font-size:26px;letter-spacing:-1px">Sign in to the console</h3>
+      <p class="muted">Floor staff and administrators only.</p>
+      <form id="login-form" novalidate>
+        <label for="username">Username</label>
+        <input id="username" type="text" autocomplete="username" placeholder="admin" />
+        <label for="password">Password</label>
+        <input id="password" type="password" autocomplete="current-password" placeholder="Password" />
+        <button class="btn" style="width:100%;margin-top:22px" type="submit">Sign in</button>
+      </form>
+      <p class="formmsg" id="login-msg"></p>
+      <p class="muted" style="margin-top:18px">Default admin credentials: admin / admin</p>
+    </div>
+  </main>
+
+  <script src="js/api.js"></script>
+  <script src="js/login.js"></script>
+</body>
+</html>
