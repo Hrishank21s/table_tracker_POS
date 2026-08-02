@@ -1,7 +1,11 @@
 import sqlite3
 
+DB_PATH = "tracker.db"
+
+
 def setup_database():
-    conn = sqlite3.connect('tracker.db')
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("PRAGMA foreign_keys = ON")
     cursor = conn.cursor()
 
     # 1. Zones (Floors)
@@ -17,7 +21,7 @@ def setup_database():
     CREATE TABLE IF NOT EXISTS tables (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         zone_id INTEGER,
-        table_name TEXT NOT NULL,
+        table_name TEXT NOT NULL UNIQUE,
         rate_per_minute REAL DEFAULT 3.0,
         status TEXT DEFAULT 'AVAILABLE',
         FOREIGN KEY(zone_id) REFERENCES zones(id)
@@ -29,8 +33,9 @@ def setup_database():
     CREATE TABLE IF NOT EXISTS menu_items (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
-        variant TEXT, 
-        price REAL NOT NULL
+        variant TEXT,
+        price REAL NOT NULL,
+        UNIQUE(name, variant)
     )
     ''')
 
@@ -50,10 +55,11 @@ def setup_database():
     CREATE TABLE IF NOT EXISTS sessions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         table_id INTEGER,
-        customer_id INTEGER, 
+        customer_id INTEGER,
+        rate_per_minute REAL,
         start_time TIMESTAMP NOT NULL,
         end_time TIMESTAMP,
-        total_minutes INTEGER DEFAULT 0,
+        total_minutes REAL DEFAULT 0,
         time_cost REAL DEFAULT 0.0,
         items_cost REAL DEFAULT 0.0,
         total_bill REAL DEFAULT 0.0,
@@ -75,28 +81,43 @@ def setup_database():
     ''')
 
     # --- INITIAL DATA POPULATION ---
+    # INSERT OR IGNORE is now genuinely idempotent thanks to the UNIQUE
+    # constraints above, so re-running this script won't create duplicates.
 
     # Setup the 3 Zones
-    zones_data = [('Zone 1 (Snooker)',), ('Zone 2 (Under Construction)',), ('Zone 3 (Pool)',)]
-    cursor.executemany("INSERT OR IGNORE INTO zones (name) VALUES (?)", zones_data)
+    zones_data = [
+        ('Zone 1 (Snooker)',),
+        ('Zone 2 (Under Construction)',),
+        ('Zone 3 (Pool)',),
+    ]
+    cursor.executemany(
+        "INSERT OR IGNORE INTO zones (name) VALUES (?)", zones_data
+    )
 
     # Setup Initial Tables (3 in Zone 1, 3 in Zone 3)
     tables_data = [
         (1, 'Snooker 1'), (1, 'Snooker 2'), (1, 'Snooker 3'),
-        (3, 'Pool 1'), (3, 'Pool 2'), (3, 'Pool 3')
+        (3, 'Pool 1'), (3, 'Pool 2'), (3, 'Pool 3'),
     ]
-    cursor.executemany("INSERT OR IGNORE INTO tables (zone_id, table_name) VALUES (?, ?)", tables_data)
+    cursor.executemany(
+        "INSERT OR IGNORE INTO tables (zone_id, table_name) VALUES (?, ?)",
+        tables_data,
+    )
 
     # Setup Menu Items
     menu_data = [
         ('Tea', 'Half', 20.0), ('Tea', 'Full', 40.0),
-        ('Coffee', 'Half', 30.0), ('Coffee', 'Full', 50.0)
+        ('Coffee', 'Half', 30.0), ('Coffee', 'Full', 50.0),
     ]
-    cursor.executemany("INSERT OR IGNORE INTO menu_items (name, variant, price) VALUES (?, ?, ?)", menu_data)
+    cursor.executemany(
+        "INSERT OR IGNORE INTO menu_items (name, variant, price) VALUES (?, ?, ?)",
+        menu_data,
+    )
 
     conn.commit()
     conn.close()
     print("Database structure successfully built for multi-zone tracking and dual billing!")
+
 
 if __name__ == '__main__':
     setup_database()
