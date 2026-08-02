@@ -100,24 +100,73 @@
 
   <script>
     const API_URL = 'http://localhost:8000';
+    const HISTORY_KEY = 'weekendRushHistory';
     let globalMenu = [];
     let activeSessions = {}; 
 
+    // --- Shared Utilities ---
+    function el(prefix, tableId) {
+      return document.getElementById(`${prefix}-${tableId}`);
+    }
+
+    function money(amount) {
+      return `₹${amount.toFixed(2)}`;
+    }
+
+    function clockTime() {
+      return new Date().toLocaleTimeString('en-IN', { hour12: false });
+    }
+
+    async function getJSON(path) {
+      const res = await fetch(`${API_URL}${path}`);
+      return res.json();
+    }
+
+    async function postJSON(path, body) {
+      const res = await fetch(`${API_URL}${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      return res.json();
+    }
+
+    function tableRate(tableId) {
+      return parseFloat(el('rate', tableId).value);
+    }
+
+    function billFor(tableId) {
+      const session = activeSessions[tableId];
+      const totalMinutes = session.elapsed / 60;
+      const timeCost = totalMinutes * tableRate(tableId);
+      return { totalMinutes, timeCost, grandTotal: timeCost + session.itemsTotal };
+    }
+
+    function setTableUIState(tableId, { badgeText, badgeClass, startDisabled, pauseDisabled, endDisabled }) {
+      const badge = el('badge', tableId);
+      badge.textContent = badgeText;
+      badge.className = badgeClass;
+      el('start', tableId).disabled = startDisabled;
+      el('pause', tableId).disabled = pauseDisabled;
+      el('end', tableId).disabled = endDisabled;
+    }
+
+    function readHistory() {
+      return JSON.parse(localStorage.getItem(HISTORY_KEY)) || [];
+    }
+
     // --- Clock Logic ---
     function updateClock() {
-      const now = new Date();
-      document.getElementById('live-clock').textContent = `Current Time: ${now.toLocaleTimeString('en-IN', { hour12: false })}`;
+      document.getElementById('live-clock').textContent = `Current Time: ${clockTime()}`;
     }
     setInterval(updateClock, 1000);
     updateClock();
 
     // --- Boot App ---
     async function init() {
-      const menuRes = await fetch(`${API_URL}/menu`);
-      globalMenu = await menuRes.json();
-      const zonesRes = await fetch(`${API_URL}/zones`);
-      const zones = await zonesRes.json();
-      
+      globalMenu = await getJSON('/menu');
+      const zones = await getJSON('/zones');
+
       renderApp(zones);
       loadHistory();
     }
@@ -209,31 +258,28 @@
 
     // --- Table Mechanics ---
     async function startTimer(tableId) {
-      const res = await fetch(`${API_URL}/sessions/start`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ table_id: tableId, customer_id: null })
-      });
-      const data = await res.json();
-      
+      const data = await postJSON('/sessions/start', { table_id: tableId, customer_id: null });
+
       const session = activeSessions[tableId];
       session.sessionId = data.session_id;
       session.isRunning = true;
-      session.startTimeStr = new Date().toLocaleTimeString('en-IN', { hour12: false });
+      session.startTimeStr = clockTime();
       session.startTime = Date.now() - (session.elapsed * 1000);
-      
-      document.getElementById(`badge-${tableId}`).textContent = '🟢 ACTIVE';
-      document.getElementById(`badge-${tableId}`).className = 'status-badge active-badge';
-      document.getElementById(`start-${tableId}`).disabled = true;
-      document.getElementById(`pause-${tableId}`).disabled = false;
-      document.getElementById(`end-${tableId}`).disabled = false;
+
+      setTableUIState(tableId, {
+        badgeText: '🟢 ACTIVE',
+        badgeClass: 'status-badge active-badge',
+        startDisabled: true,
+        pauseDisabled: false,
+        endDisabled: false
+      });
 
       session.interval = setInterval(() => {
         if (session.isRunning) {
           session.elapsed = Math.floor((Date.now() - session.startTime) / 1000);
           const min = String(Math.floor(session.elapsed / 60)).padStart(2, '0');
           const sec = String(session.elapsed % 60).padStart(2, '0');
-          document.getElementById(`time-${tableId}`).textContent = `${min}:${sec}`;
+          el('time', tableId).textContent = `${min}:${sec}`;
         }
       }, 1000);
     }
@@ -241,7 +287,7 @@
     function togglePause(tableId) {
       const session = activeSessions[tableId];
       session.isRunning = !session.isRunning;
-      const pauseBtn = document.getElementById(`pause-${tableId}`);
+      const pauseBtn = el('pause', tableId);
       if (session.isRunning) {
         session.startTime = Date.now() - (session.elapsed * 1000);
         pauseBtn.textContent = 'Pause';
@@ -254,71 +300,60 @@
       const session = activeSessions[tableId];
       if (!session.sessionId) return alert("Start the table first!");
 
-      await fetch(`${API_URL}/sessions/add_item`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: session.sessionId, item_id: itemId })
-      });
+      await postJSON('/sessions/add_item', { session_id: session.sessionId, item_id: itemId });
 
       session.itemsTotal += price;
       session.itemsList.push(itemName);
-      document.getElementById(`item-total-${tableId}`).textContent = `Items Total: ₹${session.itemsTotal.toFixed(2)}`;
-      
-      const logDiv = document.getElementById(`log-${tableId}`);
+      el('item-total', tableId).textContent = `Items Total: ${money(session.itemsTotal)}`;
+
+      const logDiv = el('log', tableId);
       if (session.itemsList.length === 1) logDiv.innerHTML = ''; 
-      logDiv.innerHTML += `+ ${itemName} (₹${price})<br>`;
+      logDiv.innerHTML += `+ ${itemName} (${money(price)})<br>`;
       logDiv.scrollTop = logDiv.scrollHeight;
     }
 
     function calculateSplit(tableId) {
-      const session = activeSessions[tableId];
-      const rate = parseFloat(document.getElementById(`rate-${tableId}`).value);
-      const players = parseInt(document.getElementById(`split-input-${tableId}`).value);
+      const players = parseInt(el('split-input', tableId).value);
       if (!players || players < 1) return;
 
-      const totalMinutes = session.elapsed / 60;
-      const grandTotal = (totalMinutes * rate) + session.itemsTotal;
-      document.getElementById(`split-result-${tableId}`).textContent = `Total Bill: ₹${grandTotal.toFixed(2)}\nPer Player: ₹${(grandTotal / players).toFixed(2)}`;
+      const { grandTotal } = billFor(tableId);
+      el('split-result', tableId).textContent = `Total Bill: ${money(grandTotal)}\nPer Player: ${money(grandTotal / players)}`;
     }
 
     function showCheckout(tableId) {
       const session = activeSessions[tableId];
       session.isRunning = false;
       clearInterval(session.interval);
-      document.getElementById(`pause-${tableId}`).disabled = true;
-      document.getElementById(`end-${tableId}`).disabled = true;
-      
-      session.endTimeStr = new Date().toLocaleTimeString('en-IN', { hour12: false });
-      const rate = parseFloat(document.getElementById(`rate-${tableId}`).value);
-      const totalMinutes = session.elapsed / 60;
-      const timeCost = totalMinutes * rate;
-      const grandTotal = timeCost + session.itemsTotal;
+      el('pause', tableId).disabled = true;
+      el('end', tableId).disabled = true;
+
+      session.endTimeStr = clockTime();
+      const { totalMinutes, timeCost, grandTotal } = billFor(tableId);
 
       // Populate Price Breakdown
-      document.getElementById(`breakdown-${tableId}`).innerHTML = `
+      el('breakdown', tableId).innerHTML = `
         <strong>Session:</strong> ${session.startTimeStr} > ${session.endTimeStr} (${totalMinutes} mins)
-        <strong>Time Cost:</strong> ₹${timeCost.toFixed(2)}
-        <strong>Items Cost:</strong> ₹${session.itemsTotal.toFixed(2)}
-        <span style="color:#4caf50; font-size:1.1rem; display:block; margin-top:5px;"><strong>Total: ₹${grandTotal.toFixed(2)}</strong></span>
+        <strong>Time Cost:</strong> ${money(timeCost)}
+        <strong>Items Cost:</strong> ${money(session.itemsTotal)}
+        <span style="color:#4caf50; font-size:1.1rem; display:block; margin-top:5px;"><strong>Total: ${money(grandTotal)}</strong></span>
       `;
-      
-      document.getElementById(`checkout-${tableId}`).style.display = 'block';
+
+      el('checkout', tableId).style.display = 'block';
     }
 
     async function submitCheckout(tableId, status) {
       const session = activeSessions[tableId];
-      const totalMinutes = session.elapsed / 60;
+      const { totalMinutes } = billFor(tableId);
 
       // Backend Call
-      const res = await fetch(`${API_URL}/sessions/checkout`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: session.sessionId, payment_status: status, total_minutes: totalMinutes })
+      const data = await postJSON('/sessions/checkout', {
+        session_id: session.sessionId,
+        payment_status: status,
+        total_minutes: totalMinutes
       });
-      const data = await res.json();
-      
+
       // Save to History Log
-      const historyStr = `[${session.tableName}] ${session.startTimeStr} > ${session.endTimeStr} | Time: ${totalMinutes}m | Items: ${session.itemsList.length} | <strong>Total: ₹${data.final_bill.toFixed(2)}</strong> | (${status}) (Guest)`;
+      const historyStr = `[${session.tableName}] ${session.startTimeStr} > ${session.endTimeStr} | Time: ${totalMinutes}m | Items: ${session.itemsList.length} | <strong>Total: ${money(data.final_bill)}</strong> | (${status}) (Guest)`;
       saveToHistory(historyStr);
 
       // Reset Table UI smoothly without reloading the page
@@ -333,31 +368,33 @@
       session.sessionId = null;
       session.itemsList = [];
 
-      document.getElementById(`badge-${tableId}`).textContent = '⚪ AVAIL';
-      document.getElementById(`badge-${tableId}`).className = 'status-badge';
-      document.getElementById(`time-${tableId}`).textContent = '00:00';
-      document.getElementById(`start-${tableId}`).disabled = false;
-      document.getElementById(`pause-${tableId}`).disabled = true;
-      document.getElementById(`pause-${tableId}`).textContent = 'Pause';
-      document.getElementById(`end-${tableId}`).disabled = true;
-      
-      document.getElementById(`checkout-${tableId}`).style.display = 'none';
-      document.getElementById(`split-input-${tableId}`).value = '';
-      document.getElementById(`split-result-${tableId}`).textContent = '';
-      document.getElementById(`log-${tableId}`).innerHTML = 'No items ordered yet.';
-      document.getElementById(`item-total-${tableId}`).textContent = 'Items Total: ₹0.00';
+      setTableUIState(tableId, {
+        badgeText: '⚪ AVAIL',
+        badgeClass: 'status-badge',
+        startDisabled: false,
+        pauseDisabled: true,
+        endDisabled: true
+      });
+      el('time', tableId).textContent = '00:00';
+      el('pause', tableId).textContent = 'Pause';
+
+      el('checkout', tableId).style.display = 'none';
+      el('split-input', tableId).value = '';
+      el('split-result', tableId).textContent = '';
+      el('log', tableId).innerHTML = 'No items ordered yet.';
+      el('item-total', tableId).textContent = `Items Total: ${money(0)}`;
     }
 
     // --- History Storage Logic ---
     function saveToHistory(entry) {
-      let history = JSON.parse(localStorage.getItem('weekendRushHistory')) || [];
+      const history = readHistory();
       history.unshift(entry); // Add to top
-      localStorage.setItem('weekendRushHistory', JSON.stringify(history));
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
       loadHistory();
     }
 
     function loadHistory() {
-      let history = JSON.parse(localStorage.getItem('weekendRushHistory')) || [];
+      const history = readHistory();
       const logDiv = document.getElementById('global-history-log');
       if (history.length === 0) {
         logDiv.innerHTML = 'No completed sessions today.';
@@ -368,7 +405,7 @@
 
     function clearHistory() {
       if(confirm("Are you sure you want to clear today's history log?")) {
-        localStorage.removeItem('weekendRushHistory');
+        localStorage.removeItem(HISTORY_KEY);
         loadHistory();
       }
     }

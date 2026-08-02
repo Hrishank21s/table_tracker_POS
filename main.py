@@ -2,8 +2,9 @@ from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import sqlite3
-from datetime import datetime
 from typing import Optional
+
+from db import connect, rows_to_dicts
 
 app = FastAPI(title="Weekend Rush Table Tracker API")
 
@@ -18,8 +19,7 @@ app.add_middleware(
 
 # Helper function to get database connection
 def get_db():
-    conn = sqlite3.connect('tracker.db')
-    conn.row_factory = sqlite3.Row  # Returns rows as dictionaries
+    conn = connect()
     try:
         yield conn
     finally:
@@ -57,7 +57,7 @@ def get_zones_and_tables(db: sqlite3.Connection = Depends(get_db)):
         tables = db.execute("SELECT * FROM tables WHERE zone_id = ?", (zone['id'],)).fetchall()
         result.append({
             "zone_name": zone['name'],
-            "tables": [dict(t) for t in tables]
+            "tables": rows_to_dicts(tables)
         })
     return result
 
@@ -65,7 +65,7 @@ def get_zones_and_tables(db: sqlite3.Connection = Depends(get_db)):
 def get_menu(db: sqlite3.Connection = Depends(get_db)):
     """Fetches all quick-add menu items."""
     items = db.execute("SELECT * FROM menu_items").fetchall()
-    return [dict(i) for i in items]
+    return rows_to_dicts(items)
 
 @app.post("/api/scan")
 def rfid_scan(scan: ScanRequest, db: sqlite3.Connection = Depends(get_db)):

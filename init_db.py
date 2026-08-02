@@ -1,7 +1,7 @@
-import sqlite3
+from db import connect
 
 def setup_database():
-    conn = sqlite3.connect('tracker.db')
+    conn = connect()
     cursor = conn.cursor()
 
     # 1. Zones (Floors)
