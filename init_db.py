@@ -1,7 +1,8 @@
 from db import connect
 
-def setup_database():
-    conn = connect()
+
+def setup_database(db_path=None):
+    conn = connect(db_path)
     cursor = conn.cursor()
 
     # 1. Zones (Floors)
@@ -80,23 +81,26 @@ def setup_database():
     zones_data = [('Zone 1 (Snooker)',), ('Zone 2 (Under Construction)',), ('Zone 3 (Pool)',)]
     cursor.executemany("INSERT OR IGNORE INTO zones (name) VALUES (?)", zones_data)
 
-    # Setup Initial Tables (3 in Zone 1, 3 in Zone 3)
-    tables_data = [
-        (1, 'Snooker 1'), (1, 'Snooker 2'), (1, 'Snooker 3'),
-        (3, 'Pool 1'), (3, 'Pool 2'), (3, 'Pool 3')
-    ]
-    cursor.executemany("INSERT OR IGNORE INTO tables (zone_id, table_name) VALUES (?, ?)", tables_data)
+    # Setup Initial Tables (3 in Zone 1, 3 in Zone 3). Only seeded on a fresh
+    # database so re-running this script never duplicates rows.
+    if cursor.execute("SELECT COUNT(*) FROM tables").fetchone()[0] == 0:
+        tables_data = [
+            (1, 'Snooker 1'), (1, 'Snooker 2'), (1, 'Snooker 3'),
+            (3, 'Pool 1'), (3, 'Pool 2'), (3, 'Pool 3')
+        ]
+        cursor.executemany("INSERT INTO tables (zone_id, table_name) VALUES (?, ?)", tables_data)
 
     # Setup Menu Items
-    menu_data = [
-        ('Tea', 'Half', 20.0), ('Tea', 'Full', 40.0),
-        ('Coffee', 'Half', 30.0), ('Coffee', 'Full', 50.0)
-    ]
-    cursor.executemany("INSERT OR IGNORE INTO menu_items (name, variant, price) VALUES (?, ?, ?)", menu_data)
+    if cursor.execute("SELECT COUNT(*) FROM menu_items").fetchone()[0] == 0:
+        menu_data = [
+            ('Tea', 'Half', 20.0), ('Tea', 'Full', 40.0),
+            ('Coffee', 'Half', 30.0), ('Coffee', 'Full', 50.0)
+        ]
+        cursor.executemany("INSERT INTO menu_items (name, variant, price) VALUES (?, ?, ?)", menu_data)
 
     conn.commit()
     conn.close()
-    print("Database structure successfully built for multi-zone tracking and dual billing!")
 
 if __name__ == '__main__':
     setup_database()
+    print("Database structure successfully built for multi-zone tracking and dual billing!")
