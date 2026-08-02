@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Weekend Rush Snooker Club</title>
+  <link rel="stylesheet" href="css/public-theme.css" />
+</head>
+<body>
+  <header class="nav">
+    <span class="brand">WEEKEND <i>RUSH</i></span>
+    <nav>
+      <a href="#tables">Tables</a>
+      <a href="#book">Booking</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#live">Live floor</a>
+      <a href="admin_login.html">Staff login</a>
+      <span class="clock" id="wall-clock">--:--:--</span>
+    </nav>
+    <a class="btn" href="#book">Book a table</a>
+  </header>
+
+  <main>
+    <section class="hero">
+      <p class="eyebrow">&#9679; OPEN TODAY &middot; 12PM &mdash; 1AM</p>
+      <h1>PLAY YOUR<br /><em>best game.</em></h1>
+      <p class="intro">
+        A home for great shots, late nights, and friendly rivalry. Premium tables,
+        live billing and instant online booking.
+      </p>
+      <p style="margin-top:30px"><a class="btn" href="#tables">Find a table &rarr;</a></p>
+      <div class="stats">
+        <div><b id="stat-tables">-</b><small>Tables on the floor</small></div>
+        <div><b id="stat-live">-</b><small>Live sessions right now</small></div>
+        <div><b id="stat-free">-</b><small>Ready to play</small></div>
+      </div>
+    </section>
+
+    <section class="section" id="tables">
+      <p class="eyebrow">LIVE FLOOR</p>
+      <h2 class="title">Find your perfect table.</h2>
+      <p class="formmsg" id="board-msg"></p>
+      <div class="tables" id="tableList"></div>
+    </section>
+
+    <section class="booking" id="book">
+      <div class="section">
+        <p class="eyebrow">ONLINE BOOKING</p>
+        <h2 class="title">Your next game<br />starts here.</h2>
+        <p class="intro">
+          Pick a table, pay the advance over UPI and share the 12-character UTR &mdash;
+          we&rsquo;ll keep the felt ready for you.
+        </p>
+      </div>
+      <div class="section">
+        <div class="form">
+          <h3 style="margin-top:0">Reserve your table</h3>
+          <form id="booking-form" novalidate>
+            <label for="booking-name">Your name</label>
+            <input id="booking-name" type="text" placeholder="Name on the booking" />
+
+            <label for="booking-slot">Start time</label>
+            <select id="booking-slot">
+              <option>8:00 PM</option>
+              <option>9:00 PM</option>
+              <option>10:00 PM</option>
+              <option>11:00 PM</option>
+            </select>
+
+            <label>Select a table</label>
+            <div class="pick" id="table-pick"></div>
+
+            <label for="booking-advance">Advance amount (INR)</label>
+            <input id="booking-advance" type="number" min="1" step="1" placeholder="500" />
+
+            <label for="booking-utr">UPI UTR (12 characters)</label>
+            <input id="booking-utr" type="text" maxlength="12" placeholder="e.g. 402312345678" />
+
+            <button class="btn" style="width:100%;margin-top:20px" type="submit">
+              Continue to confirmation
+            </button>
+          </form>
+          <p class="formmsg" id="booking-msg"></p>
+          <p style="text-align:center;color:#8c93a3;font-size:11px">
+            Advance is verified by the floor manager before your slot is confirmed.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="pricing" id="pricing">
+      <div class="section">
+        <p class="eyebrow" style="color:#090b10">SIMPLE PRICING</p>
+        <div class="pricegrid">
+          <div class="price">
+            <b>Weekday</b><strong>&#8377;250 <small>per hour</small></strong>
+            <small>Monday &mdash; Thursday</small>
+          </div>
+          <div class="price hot">
+            <b>Prime time</b><strong>&#8377;350 <small>per hour</small></strong>
+            <small>Friday &mdash; Sunday</small>
+          </div>
+          <div class="price">
+            <b>Late night</b><strong>&#8377;300 <small>per hour</small></strong>
+            <small>After 10 PM</small>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="live">
+      <p class="eyebrow">LIVE BOOKING DASHBOARD</p>
+      <h2 class="title">Club control, in real time.</h2>
+      <div class="dashboard">
+        <div class="dashbar">
+          WR / Floor status
+          <span class="lime" style="float:right">&#9679; Live &middot; <span id="dash-clock">--:--:--</span></span>
+        </div>
+        <div class="dashbody">
+          <div class="metrics">
+            <div class="metric"><b id="metric-live">-</b><span>Active sessions</span></div>
+            <div class="metric"><b id="metric-booked">-</b><span>Tables booked</span></div>
+            <div class="metric"><b id="metric-clock">00:00:00</b><span>Total time on the clock</span></div>
+          </div>
+          <div class="floor">
+            <b>Live table status</b>
+            <div class="floorgrid" id="floor"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="contact">
+    <div>
+      <h2>Come for a frame.<br /><em class="lime">Stay for the story.</em></h2>
+    </div>
+    <p>
+      7, Club Road, Indiranagar<br />Bengaluru, Karnataka 560038<br /><br />
+      <b style="color:white">+91 98765 43210</b>
+    </p>
+  </footer>
+
+  <div id="toast" class="toast"></div>
+
+  <script src="js/api.js"></script>
+  <script src="js/public.js"></script>
+</body>
+</html>
