@@ -1,7 +1,22 @@
+import os
 import sqlite3
+from pathlib import Path
+
+DB_PATH = os.environ.get("TRACKER_DB_PATH", str(Path(__file__).resolve().parent / "tracker.db"))
 
 def setup_database():
-    conn = sqlite3.connect('tracker.db')
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        _create_schema(conn)
+        conn.commit()
+    except sqlite3.Error:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+    print("Database structure successfully built for multi-zone tracking and dual billing!")
+
+def _create_schema(conn):
     cursor = conn.cursor()
 
     # 1. Zones (Floors)
@@ -93,10 +108,6 @@ def setup_database():
         ('Coffee', 'Half', 30.0), ('Coffee', 'Full', 50.0)
     ]
     cursor.executemany("INSERT OR IGNORE INTO menu_items (name, variant, price) VALUES (?, ?, ?)", menu_data)
-
-    conn.commit()
-    conn.close()
-    print("Database structure successfully built for multi-zone tracking and dual billing!")
 
 if __name__ == '__main__':
     setup_database()

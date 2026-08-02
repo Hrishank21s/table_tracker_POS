@@ -103,6 +103,37 @@
     let globalMenu = [];
     let activeSessions = {}; 
 
+    // --- Networking ---
+    function showError(message) {
+      console.error(message);
+      alert(message);
+    }
+
+    async function apiFetch(path, options) {
+      let res;
+      try {
+        res = await fetch(`${API_URL}${path}`, options);
+      } catch (err) {
+        throw new Error(`Cannot reach the server at ${API_URL}. Is it running? (${err.message})`);
+      }
+
+      const body = await res.text();
+      let payload = null;
+      if (body) {
+        try {
+          payload = JSON.parse(body);
+        } catch (err) {
+          throw new Error(`Server returned an unreadable response for ${path}: ${body.slice(0, 200)}`);
+        }
+      }
+
+      if (!res.ok) {
+        const detail = payload && payload.detail ? JSON.stringify(payload.detail) : res.statusText;
+        throw new Error(`${path} failed (${res.status}): ${detail}`);
+      }
+      return payload;
+    }
+
     // --- Clock Logic ---
     function updateClock() {
       const now = new Date();
@@ -113,12 +144,15 @@
 
     // --- Boot App ---
     async function init() {
-      const menuRes = await fetch(`${API_URL}/menu`);
-      globalMenu = await menuRes.json();
-      const zonesRes = await fetch(`${API_URL}/zones`);
-      const zones = await zonesRes.json();
-      
-      renderApp(zones);
+      try {
+        globalMenu = await apiFetch('/menu');
+        const zones = await apiFetch('/zones');
+        renderApp(zones);
+      } catch (err) {
+        document.getElementById('app-content').innerHTML =
+          `<div style="color:#f44336; text-align:center;">Failed to load tables: ${err.message}</div>`;
+        showError(`Failed to load the POS data. ${err.message}`);
+      }
       loadHistory();
     }
 
@@ -209,13 +243,18 @@
 
     // --- Table Mechanics ---
     async function startTimer(tableId) {
-      const res = await fetch(`${API_URL}/sessions/start`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ table_id: tableId, customer_id: null })
-      });
-      const data = await res.json();
-      
+      let data;
+      try {
+        data = await apiFetch('/sessions/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ table_id: tableId, customer_id: null })
+        });
+      } catch (err) {
+        showError(`Could not start the table. ${err.message}`);
+        return;
+      }
+
       const session = activeSessions[tableId];
       session.sessionId = data.session_id;
       session.isRunning = true;
@@ -254,11 +293,17 @@
       const session = activeSessions[tableId];
       if (!session.sessionId) return alert("Start the table first!");
 
-      await fetch(`${API_URL}/sessions/add_item`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: session.sessionId, item_id: itemId })
-      });
+      try {
+        await apiFetch('/sessions/add_item', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: session.sessionId, item_id: itemId })
+        });
+      } catch (err) {
+        // The item was not recorded on the server, so do not bill it locally either.
+        showError(`Could not add ${itemName}. ${err.message}`);
+        return;
+      }
 
       session.itemsTotal += price;
       session.itemsList.push(itemName);
@@ -310,15 +355,21 @@
       const totalMinutes = session.elapsed / 60;
 
       // Backend Call
-      const res = await fetch(`${API_URL}/sessions/checkout`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: session.sessionId, payment_status: status, total_minutes: totalMinutes })
-      });
-      const data = await res.json();
+      let data;
+      try {
+        data = await apiFetch('/sessions/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: session.sessionId, payment_status: status, total_minutes: totalMinutes })
+        });
+      } catch (err) {
+        // Keep the checkout panel open so the bill is not lost.
+        showError(`Checkout failed, the table is still open. ${err.message}`);
+        return;
+      }
       
       // Save to History Log
-      const historyStr = `[${session.tableName}] ${session.startTimeStr} > ${session.endTimeStr} | Time: ${totalMinutes}m | Items: ${session.itemsList.length} | <strong>Total: ₹${data.final_bill.toFixed(2)}</strong> | (${status}) (Guest)`;
+      const historyStr = `[${session.tableName}] ${session.startTimeStr} > ${session.endTimeStr} | Time: ${totalMinutes}m | Items: ${session.itemsList.length} | <strong>Total: ₹${Number(data.final_bill ?? 0).toFixed(2)}</strong> | (${status}) (Guest)`;
       saveToHistory(historyStr);
 
       // Reset Table UI smoothly without reloading the page
@@ -349,15 +400,29 @@
     }
 
     // --- History Storage Logic ---
+    function readHistory() {
+      try {
+        const stored = JSON.parse(localStorage.getItem('weekendRushHistory'));
+        return Array.isArray(stored) ? stored : [];
+      } catch (err) {
+        console.error('Stored history was corrupt and has been ignored.', err);
+        return [];
+      }
+    }
+
     function saveToHistory(entry) {
-      let history = JSON.parse(localStorage.getItem('weekendRushHistory')) || [];
+      const history = readHistory();
       history.unshift(entry); // Add to top
-      localStorage.setItem('weekendRushHistory', JSON.stringify(history));
+      try {
+        localStorage.setItem('weekendRushHistory', JSON.stringify(history));
+      } catch (err) {
+        showError(`Could not save this session to the history log. ${err.message}`);
+      }
       loadHistory();
     }
 
     function loadHistory() {
-      let history = JSON.parse(localStorage.getItem('weekendRushHistory')) || [];
+      const history = readHistory();
       const logDiv = document.getElementById('global-history-log');
       if (history.length === 0) {
         logDiv.innerHTML = 'No completed sessions today.';
